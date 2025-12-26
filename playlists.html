@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Playlists</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Bootstrap CSS -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+    <!-- Bootstrap Icons -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
+        rel="stylesheet"
+    >
+
+    <style>
+        body {
+            background: #f5f6fa;
+            min-height: 100vh;
+        }
+
+        .layout {
+            display: flex;
+            height: calc(100vh - 56px);
+        }
+
+        .sidebar {
+            width: 280px;
+            background: #ffffff;
+            border-right: 1px solid #ddd;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .main {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .playlist-item {
+            cursor: pointer;
+        }
+
+        .playlist-item.active {
+            background-color: #0d6efd;
+            color: white;
+        }
+
+        .video-thumb {
+            width: 120px;
+            height: 70px;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .video-title {
+            cursor: pointer;
+        }
+
+        .rating-star {
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- Header -->
+<nav class="navbar navbar-light bg-light px-4">
+    <span class="navbar-brand fw-bold">
+        <i class="bi bi-collection-play me-2"></i>My Playlists
+    </span>
+
+    <div class="d-flex align-items-center gap-2">
+        <a href="search.html" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-search"></i> Search
+        </a>
+
+        <img id="headerUserImage" class="rounded-circle ms-2" width="45" height="45">
+        <strong id="headerUsername"></strong>
+    </div>
+</nav>
+
+<div class="layout">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h5 class="mb-3">My library</h5>
+
+        <div class="input-group mb-3">
+            <input id="newPlaylistInput" class="form-control" placeholder="New playlist name">
+            <button id="addPlaylistBtn" class="btn btn-primary">
+                <i class="bi bi-plus"></i>
+            </button>
+        </div>
+
+        <ul id="playlistList" class="list-group"></ul>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main">
+
+        <div id="emptyMessage" class="alert alert-info d-none">
+            Choose a playlist from the sidebar.
+        </div>
+
+        <div id="playlistContent" class="d-none">
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+                <h4 id="playlistTitle"></h4>
+
+                <div class="d-flex gap-2">
+                    <input id="searchInput" class="form-control" placeholder="Search video">
+                    <select id="sortSelect" class="form-select">
+                        <option value="az">A → Z</option>
+                        <option value="za">Z → A</option>
+                        <option value="ratingHigh">Rating: High → Low</option>
+                        <option value="ratingLow">Rating: Low → High</option>
+                    </select>
+                </div>
+            </div>
+
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Thumbnail</th>
+                        <th>Title</th>
+                        <th>Channel</th>
+                        <th>Rating</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="videosBody"></tbody>
+            </table>
+
+        </div>
+
+    </div>
+</div>
+
+<!-- Play Modal -->
+<div class="modal fade" id="playModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 id="playModalTitle" class="modal-title"></h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <iframe
+                    id="playFrame"
+                    class="w-100"
+                    style="aspect-ratio:16/9;"
+                    allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Auth -->
+<script src="auth.js"></script>
+
+<script>
+// Auth
+requireAuth();
+renderUserHeader();
+
+// Modal references
+const playModal = new bootstrap.Modal(document.getElementById("playModal"));
+const playFrame = document.getElementById("playFrame");
+const playModalTitle = document.getElementById("playModalTitle");
+
+// LocalStorage key
+const playlistKey = `playlists_${currentUser.username}`;
+
+// DOM refs
+const playlistList = document.getElementById("playlistList");
+const videosBody = document.getElementById("videosBody");
+const playlistTitle = document.getElementById("playlistTitle");
+const playlistContent = document.getElementById("playlistContent");
+const emptyMessage = document.getElementById("emptyMessage");
+const searchInput = document.getElementById("searchInput");
+const sortSelect = document.getElementById("sortSelect");
+
+// State
+let playlists = JSON.parse(localStorage.getItem(playlistKey)) || [];
+let currentPlaylist = null;
+
+// Save playlists
+function savePlaylists() {
+    localStorage.setItem(playlistKey, JSON.stringify(playlists));
+}
+
+// Query string helpers
+function getQueryPlaylist() {
+    return new URLSearchParams(location.search).get("playlist");
+}
+
+function setQueryPlaylist(name) {
+    history.pushState({}, "", `?playlist=${encodeURIComponent(name)}`);
+}
+
+/* ===== SIDEBAR ===== */
+
+function renderSidebar() {
+    playlistList.innerHTML = "";
+
+    playlists.forEach(p => {
+        const li = document.createElement("li");
+        li.className =
+            "list-group-item playlist-item d-flex justify-content-between align-items-center";
+
+        li.innerHTML = `
+            <span>${p.name}</span>
+            <button class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+            </button>
+        `;
+
+        if (currentPlaylist && p.name === currentPlaylist.name) {
+            li.classList.add("active");
+        }
+
+        li.onclick = () => selectPlaylist(p.name);
+
+        li.querySelector("button").onclick = (e) => {
+            e.stopPropagation();
+            deletePlaylist(p.name);
+        };
+
+        playlistList.appendChild(li);
+    });
+}
+
+/* ===== PLAYLIST ===== */
+
+function selectPlaylist(name) {
+    currentPlaylist = playlists.find(p => p.name === name);
+    setQueryPlaylist(name);
+    renderSidebar();
+    renderVideos();
+}
+
+function deletePlaylist(name) {
+    if (!confirm(`Delete playlist "${name}"?`)) return;
+
+    playlists = playlists.filter(p => p.name !== name);
+    savePlaylists();
+    currentPlaylist = playlists.length ? playlists[0] : null;
+    renderSidebar();
+    renderVideos();
+}
+
+/* ===== VIDEOS ===== */
+
+function renderVideos() {
+    if (!currentPlaylist) {
+        playlistContent.classList.add("d-none");
+        emptyMessage.classList.remove("d-none");
+        return;
+    }
+
+    emptyMessage.classList.add("d-none");
+    playlistContent.classList.remove("d-none");
+    playlistTitle.textContent = currentPlaylist.name;
+
+    let videos = [...currentPlaylist.videos];
+
+    const q = searchInput.value.toLowerCase();
+    if (q) {
+        videos = videos.filter(v => v.title.toLowerCase().includes(q));
+    }
+
+    videos.sort((a, b) => {
+        if (sortSelect.value === "az") return a.title.localeCompare(b.title);
+        if (sortSelect.value === "za") return b.title.localeCompare(a.title);
+        if (sortSelect.value === "ratingHigh") return (b.rating || 0) - (a.rating || 0);
+        if (sortSelect.value === "ratingLow") return (a.rating || 0) - (b.rating || 0);
+        return 0;
+    });
+
+    videosBody.innerHTML = "";
+
+    videos.forEach(v => {
+        const rating = v.rating || 0;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>
+                <img class="video-thumb" src="${v.thumbnail}">
+            </td>
+            <td>
+                <span class="video-title">${v.title}</span>
+            </td>
+            <td>${v.channel}</td>
+            <td>
+                ${[1,2,3,4,5].map(n => `
+                    <i class="bi ${n <= rating ? 'bi-star-fill text-warning' : 'bi-star'}
+                       rating-star" data-rate="${n}"></i>
+                `).join("")}
+            </td>
+            <td class="text-end">
+                <button class="btn btn-sm btn-danger">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+
+        // Play video
+        tr.querySelector(".video-thumb").onclick = () => playVideo(v);
+        tr.querySelector(".video-title").onclick = () => playVideo(v);
+
+        // Rate video
+        tr.querySelectorAll(".rating-star").forEach(star => {
+            star.onclick = () => {
+                v.rating = Number(star.dataset.rate);
+                savePlaylists();
+                renderVideos();
+            };
+        });
+
+        // Remove video
+        tr.querySelector("button").onclick = () => {
+            currentPlaylist.videos =
+                currentPlaylist.videos.filter(x => x.videoId !== v.videoId);
+            savePlaylists();
+            renderVideos();
+        };
+
+        videosBody.appendChild(tr);
+    });
+}
+
+// Play helper
+function playVideo(v) {
+    playModalTitle.textContent = v.title;
+    playFrame.src = `https://www.youtube.com/embed/${v.videoId}?autoplay=1`;
+    playModal.show();
+}
+
+// Stop video on close
+document.getElementById("playModal").addEventListener("hidden.bs.modal", () => {
+    playFrame.src = "";
+});
+
+/* ===== ADD PLAYLIST ===== */
+
+document.getElementById("addPlaylistBtn").onclick = () => {
+    const input = document.getElementById("newPlaylistInput");
+    const name = input.value.trim();
+
+    if (!name) return alert("Please enter a playlist name.");
+    if (playlists.some(p => p.name === name)) return alert("Playlist already exists.");
+
+    playlists.push({ name, videos: [] });
+    savePlaylists();
+    selectPlaylist(name);
+    input.value = "";
+};
+
+// Live search & sort
+searchInput.oninput = renderVideos;
+sortSelect.onchange = renderVideos;
+
+/* ===== INIT ===== */
+
+const qp = getQueryPlaylist();
+
+if (qp && playlists.some(p => p.name === qp)) {
+    selectPlaylist(qp);
+} else if (playlists.length > 0) {
+    selectPlaylist(playlists[0].name);
+} else {
+    emptyMessage.classList.remove("d-none");
+}
+
+renderSidebar();
+</script>
+
+</body>
+</html>
