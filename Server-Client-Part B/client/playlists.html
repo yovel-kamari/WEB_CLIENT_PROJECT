@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Playlists</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        body { background: #f5f6fa; min-height: 100vh; }
+        .layout { display: flex; height: calc(100vh - 56px); }
+        .sidebar { width: 280px; background: #fff; border-right: 1px solid #ddd; padding: 15px; overflow-y: auto; }
+        .main { flex: 1; padding: 20px; overflow-y: auto; }
+        .playlist-item { cursor: pointer; }
+        .playlist-item.active { background-color: #0d6efd; color: white; }
+        .video-thumb { width: 120px; height: 70px; object-fit: cover; border-radius: 8px; cursor: pointer; }
+        .video-title { cursor: pointer; }
+        .rating-star { cursor: pointer; font-size: 1.1rem; }
+    </style>
+</head>
+
+<body>
+
+<nav class="navbar navbar-light bg-light px-4">
+    <span class="navbar-brand fw-bold">
+        <i class="bi bi-collection-play me-2"></i>My Playlists
+    </span>
+    <div class="d-flex align-items-center gap-2">
+        <a href="search.html" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-search"></i> Search
+        </a>
+        <img id="headerUserImage" class="rounded-circle ms-2" width="45" height="45">
+        <strong id="headerUsername"></strong>
+    </div>
+</nav>
+
+<div class="layout">
+
+    <div class="sidebar">
+        <h5 class="mb-3">My library</h5>
+
+        <div class="input-group mb-3">
+            <input id="newPlaylistInput" class="form-control" placeholder="New playlist name">
+            <button id="addPlaylistBtn" class="btn btn-primary">
+                <i class="bi bi-plus"></i>
+            </button>
+        </div>
+
+        <ul id="playlistList" class="list-group"></ul>
+    </div>
+
+    <div class="main">
+        <div id="emptyMessage" class="alert alert-info d-none">
+            Choose a playlist from the sidebar.
+        </div>
+
+        <div id="playlistContent" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 id="playlistTitle"></h4>
+                <div class="d-flex gap-2">
+                    <input type="file" id="mp3Input" accept=".mp3" class="form-control w-auto">
+                    <input id="searchInput" class="form-control" placeholder="Search video">
+                    <select id="sortSelect" class="form-select">
+                        <option value="az">A → Z</option>
+                        <option value="za">Z → A</option>
+                        <option value="ratingHigh">Rating: High → Low</option>
+                        <option value="ratingLow">Rating: Low → High</option>
+                    </select>
+                </div>
+            </div>
+
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Thumbnail</th>
+                        <th>Title</th>
+                        <th>Channel</th>
+                        <th>Rating</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="videosBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="playModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 id="playModalTitle" class="modal-title"></h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <audio id="audioPlayer" controls style="width:100%; display:none"></audio>
+                <iframe id="playFrame" class="w-100" style="aspect-ratio:16/9;" allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="auth.js"></script>
+
+<script>
+requireAuth();
+renderUserHeader();
+
+const playModal = new bootstrap.Modal(document.getElementById("playModal"));
+const playFrame = document.getElementById("playFrame");
+const playModalTitle = document.getElementById("playModalTitle");
+
+const playlistList = document.getElementById("playlistList");
+const videosBody = document.getElementById("videosBody");
+const playlistTitle = document.getElementById("playlistTitle");
+const playlistContent = document.getElementById("playlistContent");
+const emptyMessage = document.getElementById("emptyMessage");
+const searchInput = document.getElementById("searchInput");
+const sortSelect = document.getElementById("sortSelect");
+
+let playlists = [];
+let currentPlaylist = null;
+
+async function loadPlaylists() {
+    const res = await authFetch("http://localhost:3000/api/playlists");
+    playlists = await res.json();
+}
+
+function renderSidebar() {
+    playlistList.innerHTML = "";
+
+    playlists.forEach(p => {
+        const li = document.createElement("li");
+        li.className = "list-group-item playlist-item d-flex justify-content-between align-items-center";
+        if (currentPlaylist && p.name === currentPlaylist.name) li.classList.add("active");
+
+        li.innerHTML = `
+            <span>${p.name}</span>
+            <button class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+            </button>
+        `;
+
+        li.onclick = () => selectPlaylist(p.name);
+
+        li.querySelector("button").onclick = async (e) => {
+            e.stopPropagation();
+            if (!confirm(`Delete playlist "${p.name}"?`)) return;
+
+            await authFetch(
+                `http://localhost:3000/api/playlists/${encodeURIComponent(p.name)}`,
+                { method: "DELETE" }
+            );
+
+            await loadPlaylists();
+            currentPlaylist = playlists[0] || null;
+            renderSidebar();
+            renderVideos();
+        };
+
+        playlistList.appendChild(li);
+    });
+}
+
+function selectPlaylist(name) {
+    currentPlaylist = playlists.find(p => p.name === name);
+    renderSidebar();
+    renderVideos();
+}
+
+function renderVideos() {
+    if (!currentPlaylist) {
+        playlistContent.classList.add("d-none");
+        emptyMessage.classList.remove("d-none");
+        return;
+    }
+
+    emptyMessage.classList.add("d-none");
+    playlistContent.classList.remove("d-none");
+    playlistTitle.textContent = currentPlaylist.name;
+
+    let videos = [...currentPlaylist.videos];
+
+    const q = searchInput.value.toLowerCase();
+    if (q) videos = videos.filter(v => v.title.toLowerCase().includes(q));
+
+    videos.sort((a, b) => {
+        if (sortSelect.value === "az") return a.title.localeCompare(b.title);
+        if (sortSelect.value === "za") return b.title.localeCompare(a.title);
+        if (sortSelect.value === "ratingHigh") return (b.rating || 0) - (a.rating || 0);
+        if (sortSelect.value === "ratingLow") return (a.rating || 0) - (b.rating || 0);
+        return 0;
+    });
+
+    videosBody.innerHTML = "";
+
+    videos.forEach(v => {
+        const rating = v.rating || 0;
+
+        const tr = document.createElement("tr");
+        const thumbHtml = v.type === "mp3"
+        ? `<div class="video-thumb d-flex align-items-center justify-content-center bg-light fs-2">🎵</div>`
+        : `<img class="video-thumb" src="${v.thumbnail}">`;
+
+        tr.innerHTML = `
+            <td>${thumbHtml}</td>
+            <td><span class="video-title">${v.title}</span></td>
+            <td>${v.channel}</td>
+            <td>
+                ${[1,2,3,4,5].map(n => `
+                    <i class="bi ${n <= rating ? 'bi-star-fill text-warning' : 'bi-star'} rating-star"
+                    data-rate="${n}"></i>
+                `).join("")}
+            </td>
+            <td class="text-end">
+                <button class="btn btn-sm btn-danger">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+
+
+        tr.querySelector(".video-thumb").onclick = () => playVideo(v);
+        tr.querySelector(".video-title").onclick = () => playVideo(v);
+
+        tr.querySelectorAll(".rating-star").forEach(star => {
+            star.onclick = async () => {
+                const newRating = Number(star.dataset.rate);
+                await authFetch(
+                    `http://localhost:3000/api/playlists/${encodeURIComponent(currentPlaylist.name)}/videos/${v.videoId}/rating`,
+                    {
+                        method: "PUT",
+                        body: JSON.stringify({ rating: newRating })
+                    }
+                );
+                await loadPlaylists();
+                selectPlaylist(currentPlaylist.name);
+            };
+        });
+
+        tr.querySelector(".btn-danger").onclick = async () => {
+            if (!confirm("Remove this video from playlist?")) return;
+
+            await authFetch(
+                `http://localhost:3000/api/playlists/${encodeURIComponent(currentPlaylist.name)}/videos/${v.videoId}`,
+                { method: "DELETE" }
+            );
+
+            await loadPlaylists();
+            selectPlaylist(currentPlaylist.name);
+        };
+
+        videosBody.appendChild(tr);
+    });
+}
+
+function playVideo(v) {
+    playModalTitle.textContent = v.title;
+
+    const audio = document.getElementById("audioPlayer");
+
+    if (v.type === "mp3") {
+        playFrame.style.display = "none";
+        audio.style.display = "block";
+        audio.src = `http://localhost:3000${v.file}`;
+        audio.play();
+    } else {
+        audio.pause();
+        audio.style.display = "none";
+        playFrame.style.display = "block";
+        playFrame.src = `https://www.youtube.com/embed/${v.videoId}?autoplay=1`;
+    }
+
+    playModal.show();
+}
+
+
+
+
+document.getElementById("playModal").addEventListener("hidden.bs.modal", () => {
+    const audio = document.getElementById("audioPlayer");
+    audio.pause();
+    audio.src = "";
+    playFrame.src = "";
+});
+
+
+
+document.getElementById("addPlaylistBtn").onclick = async () => {
+    const input = document.getElementById("newPlaylistInput");
+    const name = input.value.trim();
+    if (!name) return alert("Please enter a playlist name.");
+
+    await authFetch("http://localhost:3000/api/playlists", {
+        method: "POST",
+        body: JSON.stringify({ name })
+    });
+
+    input.value = "";
+    await loadPlaylists();
+    selectPlaylist(name);
+};
+
+searchInput.oninput = renderVideos;
+sortSelect.onchange = renderVideos;
+
+(async function init() {
+    await loadPlaylists();
+    if (playlists.length > 0) selectPlaylist(playlists[0].name);
+})();
+
+document.getElementById("mp3Input").onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const fd = new FormData();
+    fd.append("mp3", file);
+
+    await fetch(
+        `http://localhost:3000/api/playlists/${encodeURIComponent(currentPlaylist.name)}/upload`,
+        {
+            method: "POST",
+            headers: {
+                Authorization: "Bearer " + sessionStorage.getItem("token")
+            },
+            body: fd
+        }
+    );
+
+    await loadPlaylists();
+    selectPlaylist(currentPlaylist.name);
+};
+
+</script>
+
+</body>
+
+</html>

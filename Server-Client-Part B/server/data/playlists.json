@@ -1,0 +1,73 @@
+[
+  {
+    "username": "yovel12",
+    "playlists": [
+      {
+        "name": "1",
+        "videos": [
+          {
+            "videoId": "zOigxsiVKfw",
+            "title": "אריק איינשטיין - הלהיטים הגדולים ברצף",
+            "channel": "מוזיקה ישראלית",
+            "thumbnail": "https://i.ytimg.com/vi/zOigxsiVKfw/mqdefault.jpg",
+            "duration": "2:00:57",
+            "views": "281.7K",
+            "rating": 5
+          },
+          {
+            "videoId": "5WEggKymynE",
+            "title": "אריק איינשטיין - יש בי אהבה",
+            "channel": "מוזיקה ישראלית",
+            "thumbnail": "https://i.ytimg.com/vi/5WEggKymynE/mqdefault.jpg",
+            "duration": "4:14",
+            "views": "10.5M",
+            "rating": 2
+          }
+        ]
+      },
+      {
+        "name": "2",
+        "videos": [
+          {
+            "videoId": "uS2KXqTIo84",
+            "title": "יש בי אהבה",
+            "channel": "Arik Einstein - Topic",
+            "thumbnail": "https://i.ytimg.com/vi/uS2KXqTIo84/mqdefault.jpg",
+            "duration": "4:14",
+            "views": "769.8K"
+          }
+        ]
+      },
+      {
+        "name": "3",
+        "videos": [
+          {
+            "videoId": "Y1DUYLhl0H0",
+            "title": "שירי ילדים אריק איינשטיין ברצף - שירי ילדות אהובים -  ילדות ישראלית",
+            "channel": "ילדות ישראלית",
+            "thumbnail": "https://i.ytimg.com/vi/Y1DUYLhl0H0/mqdefault.jpg",
+            "duration": "14:31",
+            "views": "16M",
+            "rating": 3
+          },
+          {
+            "videoId": "mp3-1767307484586",
+            "title": "באושר ובעוני.mp3",
+            "channel": "Local MP3",
+            "type": "mp3",
+            "file": "/uploads/c4976e4f3bb982076659f1edd1867c36",
+            "rating": 5
+          },
+          {
+            "videoId": "mp3-1767307504376",
+            "title": "יהודית רביץ - מילה טובה.mp3",
+            "channel": "Local MP3",
+            "type": "mp3",
+            "file": "/uploads/e2247e0b36c82851d90f45c3b87335ec",
+            "rating": 3
+          }
+        ]
+      }
+    ]
+  }
+]
